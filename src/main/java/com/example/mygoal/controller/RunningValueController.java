@@ -24,7 +24,7 @@ public class RunningValueController {
         response.put("value", runningValueService.getCurrentValue());
         return response;
     }
-    @PostMapping("/runing-pause-counting")
+    @PostMapping("/running-pause-counting")
     public void pauseCounting() {
         runningValueService.pauseCounting();
     }
