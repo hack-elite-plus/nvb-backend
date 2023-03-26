@@ -4,18 +4,18 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class BikingValueService {
-    private int currentValue = 0;
+    private int bikingCurrentValue = 0;
 
     public int getCurrentValue() {
-        return currentValue;
+        return bikingCurrentValue;
     }
     private boolean paused = false;
 
     public void updateValue(int newValue) {
-        currentValue = 0;
-        while (currentValue < newValue) {
+        bikingCurrentValue = 0;
+        while (bikingCurrentValue < newValue) {
             if (!paused) {
-                currentValue++;
+                bikingCurrentValue++;
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException e) {

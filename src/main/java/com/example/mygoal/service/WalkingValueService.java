@@ -4,18 +4,18 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class WalkingValueService {
-    private int currentValue = 0;
+    private int walkingCurrentValue = 0;
 
     public int getCurrentValue() {
-        return currentValue;
+        return walkingCurrentValue;
     }
     private boolean paused = false;
 
     public void updateValue(int newValue) {
-        currentValue = 0;
-        while (currentValue < newValue) {
+        walkingCurrentValue = 0;
+        while (walkingCurrentValue < newValue) {
             if (!paused) {
-                currentValue++;
+                walkingCurrentValue++;
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException e) {
