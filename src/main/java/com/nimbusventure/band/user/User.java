@@ -73,6 +73,8 @@ public class User implements UserDetails {
     @Enumerated(EnumType.STRING)
     private Gender gender;
 
+    private boolean isVerified;
+
     @OneToMany(
             mappedBy = "user",
             orphanRemoval = true,
