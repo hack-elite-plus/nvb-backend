@@ -17,10 +17,10 @@ public class ForgotPasswordRequest {
     private String email;
 
     @NotBlank(message="current password is required!")
-    @ValidPassword(message = "password format is not valid!")
+//    @ValidPassword(message = "password format is not valid!")
     private String currentPassword;
 
     @NotBlank(message="Password is required!")
-    @ValidPassword(message = "password format is not valid!")
+//    @ValidPassword(message = "password format is not valid!")
     private String newPassword;
 }
