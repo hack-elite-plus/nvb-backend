@@ -1,4 +1,4 @@
-package com.nimbusventure.band.RegistrationToken;
+package com.nimbusventure.band.registrationToken;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;

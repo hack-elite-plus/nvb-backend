@@ -1,4 +1,4 @@
-package com.nimbusventure.band.RegistrationToken;
+package com.nimbusventure.band.registrationToken;
 
 public enum RegistrationTokenType {
     EMAIL_CONFIRM,

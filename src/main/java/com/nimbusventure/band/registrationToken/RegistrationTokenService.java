@@ -1,4 +1,4 @@
-package com.nimbusventure.band.RegistrationToken;
+package com.nimbusventure.band.registrationToken;
 
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
