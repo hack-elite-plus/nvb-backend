@@ -3,16 +3,18 @@ package com.nimbusventure.band.auth;
 import com.nimbusventure.band.band.Band;
 import com.nimbusventure.band.band.BandRepository;
 import com.nimbusventure.band.config.JwtService;
-import com.nimbusventure.band.token.Token;
-import com.nimbusventure.band.token.TokenRepository;
+import com.nimbusventure.band.passwordResetToken.PasswordResetToken;
+import com.nimbusventure.band.passwordResetToken.PasswordResetTokenRepository;
+import com.nimbusventure.band.passwordResetToken.PasswordResetTokenService;
+import com.nimbusventure.band.RegistrationToken.RegistrationToken;
+import com.nimbusventure.band.RegistrationToken.RegistrationTokenRepository;
 import com.nimbusventure.band.email.EmailSender;
-import com.nimbusventure.band.token.TokenService;
-import com.nimbusventure.band.token.TokenType;
+import com.nimbusventure.band.RegistrationToken.RegistrationTokenService;
+import com.nimbusventure.band.RegistrationToken.RegistrationTokenType;
 import com.nimbusventure.band.user.Role;
 import com.nimbusventure.band.user.User;
 import com.nimbusventure.band.user.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -25,18 +27,22 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class AuthenticationService {
 
-    private final TokenService tokenService;
-    private final TokenRepository tokenRepository;
+    private final RegistrationTokenService tokenService;
+    private final RegistrationTokenRepository tokenRepository;
+
+    private final PasswordResetTokenService passwordResetTokenService;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
+
     private final UserRepository userRepository;
     private final BandRepository bandRepository;
+
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final EmailSender emailSender;
 
     @Transactional
-    public AuthenticationResponse register(RegisterRequest request) {
-        System.out.println(request);
+    public Boolean register(RegisterRequest request) {
         var isUserExists = userRepository.findUserByEmail(request.getEmail());
         var isBandExists = bandRepository.findBandByBandId(request.getBandId());
 
@@ -63,38 +69,41 @@ public class AuthenticationService {
 
         var jwtToken = jwtService.generateToken(user);
 
-        var token = Token.builder()
+        var token = RegistrationToken.builder()
                 .token(jwtToken)
                 .createdAt(LocalDateTime.now())
                 .expiresAt(LocalDateTime.now().plusMinutes(15))
-                .tokenType(TokenType.EMAIL_CONFIRM)
+                .tokenType(RegistrationTokenType.EMAIL_CONFIRM)
                 .user(user)
                 .build();
 
         tokenRepository.save(token);
 
-        String link = "http://192.168.1.102:8080/api/v1/auth/confirm?token=" + jwtToken;
+        String link = "http://localhost:8080/api/v1/auth/confirmRegistration?token=" + jwtToken;
         emailSender.send(request.getEmail(), buildEmailConfirmationTemplate(request.getFirstName(), link), "Confirm your email");
 
-        return AuthenticationResponse
-                .builder()
-                .token(jwtToken)
-                .build();
 
+        return true;
     }
 
     public AuthenticationResponse authenticate(AuthenticationRequest request) {
-        var auth = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.getEmail(),
-                        request.getPassword()
-                )
-        );
-        System.out.println(auth);
-        var user = userRepository.findUserByEmail(request.getEmail())
-                .orElseThrow();
+        var user = userRepository.findUserByEmail(request.getEmail());
+        if(user.isEmpty()) throw new IllegalStateException("username is not found!");
 
-        var jwtToken = jwtService.generateToken(user);
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            request.getEmail(),
+                            request.getPassword()
+                    )
+            );
+        } catch(Exception e) {
+            throw new IllegalStateException("password is invalid!");
+        }
+
+        if(!user.get().isVerified()) throw new IllegalStateException("user is not verified! please verify your account!");
+
+        var jwtToken = jwtService.generateToken(user.get());
 
         return AuthenticationResponse
                 .builder()
@@ -102,17 +111,63 @@ public class AuthenticationService {
                 .build();
     }
 
-    public Boolean checkEmail(String email) {
+    @Transactional
+    public Boolean confirmRegistration(String token) {
+        var confirmationToken = tokenRepository.findByToken(token);
+        if (confirmationToken.isEmpty() || confirmationToken.get().getTokenType() != RegistrationTokenType.EMAIL_CONFIRM)
+            throw new IllegalStateException("invalid token!");
+
+        if(confirmationToken.get().getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new IllegalStateException("token expired!");
+        }
+
+        if(confirmationToken.get().getVerifiedAt() != null)
+            throw new IllegalStateException("email is already confirmed!");
+
+        tokenService.setVerifiedAt(confirmationToken.get().getToken());
+
+        var userId = confirmationToken.get().getUser().getId();
+        userRepository.setUserVerified(userId);
+
+        return true;
+    }
+
+    @Transactional
+    public Boolean confirmResetPassword(String token) {
+        var passwordResetToken = passwordResetTokenRepository.findByToken(token);
+        if (passwordResetToken.isEmpty()) throw new IllegalStateException("invalid token!");
+
+        if(passwordResetToken.get().getExpiresAt().isBefore(LocalDateTime.now()))
+            throw new IllegalStateException("token expired!");
+
+        if(passwordResetToken.get().getVerifiedAt() != null)
+            throw new IllegalStateException("email is already confirmed!");
+
+        passwordResetTokenService.setVerifiedAt(passwordResetToken.get().getToken());
+
+        var newPassword = passwordResetToken.get().getNewPassword();
+        var userId = passwordResetToken.get().getUser().getId();
+        userRepository.updateUserPassword(userId, newPassword);
+        return true;
+    }
+
+    public Boolean isUserExists(String email) {
+        if(email.length() == 0) throw new IllegalStateException("email is not valid");
+
         var user = userRepository.findUserByEmail(email);
-        return !user.isPresent();
+        if (user.isPresent()) throw new IllegalStateException("Username is already exists!");
+        else return true;
     }
 
-    public Boolean checkBandId(String bandId) {
+    public Boolean isBandExists(String bandId) {
+        if(bandId.length() == 0) throw new IllegalStateException("bandId is not valid");
+
         var band = bandRepository.findBandByBandId(bandId);
-        return !band.isPresent();
+        if(band.isPresent()) throw new IllegalStateException("Band ID is already registered to a different user.");
+        else return true;
     }
 
-    public AuthenticationResponse forgotPassword(ForgotPasswordRequest request) {
+    public Boolean resetPassword(ForgotPasswordRequest request) {
         if (request.getCurrentPassword().equals(request.getNewPassword()))
             throw new IllegalStateException("new password is same as current password");
 
@@ -123,70 +178,21 @@ public class AuthenticationService {
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.get().getPassword()))
             throw new IllegalStateException("Current password is wrong!");
 
-        user.get().setPassword(passwordEncoder.encode(request.getNewPassword()));
-
         var jwtToken = jwtService.generateToken(user.get());
 
-
-        var token = Token.builder()
+        var passwordResetToken = PasswordResetToken.builder()
                 .token(jwtToken)
+                .newPassword(passwordEncoder.encode(request.getNewPassword()))
                 .createdAt(LocalDateTime.now())
                 .expiresAt(LocalDateTime.now().plusMinutes(15))
-                .tokenType(TokenType.PASSWORD_RESET)
                 .user(user.get())
-                .build();
+                        .build();
 
-        tokenRepository.save(token);
+        passwordResetTokenRepository.save(passwordResetToken);
 
-        String link = "http://192.168.1.102:8080/api/v1/auth/passwordReset?token=" + jwtToken;
+        String link = "http://localhost:8080/api/v1/auth/confirmResetPassword?token=" + jwtToken;
         emailSender.send(request.getEmail(), buildPasswordResetConfirmationTemplate(link), "Reset your password");
-
-        return AuthenticationResponse
-                .builder()
-                .token(jwtToken)
-                .build();
-
-    }
-
-    public AuthenticationResponse confirmEmail(String token) {
-        var confirmationToken = tokenRepository.findByToken(token);
-
-        if (confirmationToken.isEmpty() || confirmationToken.get().getTokenType() != TokenType.EMAIL_CONFIRM)
-            throw new IllegalStateException("invalid token!");
-
-        if(confirmationToken.get().getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new IllegalStateException("token expired!");
-        }
-
-        if(confirmationToken.get().getVerifiedAt() != null)
-            throw new IllegalStateException("email is already confirmed!");
-
-        tokenService.setVerifiedAt(confirmationToken.get());
-
-        return AuthenticationResponse
-                .builder()
-                .token(token)
-                .build();
-    }
-
-    public AuthenticationResponse confirmPasswordReset(String token) {
-        var passwordResetToken = tokenRepository.findByToken(token);
-        if (passwordResetToken.isEmpty() || passwordResetToken.get().getTokenType() != TokenType.PASSWORD_RESET)
-            throw new IllegalStateException("invalid token!");
-
-        if(passwordResetToken.get().getExpiresAt().isAfter(LocalDateTime.now())) {
-            throw new IllegalStateException("token expired!");
-        }
-
-        if(passwordResetToken.get().getVerifiedAt() != null)
-            throw new IllegalStateException("password already changed!");
-
-        tokenService.setVerifiedAt(passwordResetToken.get());
-
-        return AuthenticationResponse
-                .builder()
-                .token(token)
-                .build();
+        return true;
     }
 
     private String buildEmailConfirmationTemplate(String firstName, String link) {
