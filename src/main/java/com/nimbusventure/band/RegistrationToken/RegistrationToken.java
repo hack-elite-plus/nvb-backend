@@ -1,10 +1,7 @@
-package com.nimbusventure.band.token;
+package com.nimbusventure.band.RegistrationToken;
 
 import com.nimbusventure.band.user.User;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import javax.persistence.*;
 import java.time.LocalDateTime;
@@ -17,7 +14,7 @@ import static javax.persistence.GenerationType.SEQUENCE;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class Token {
+public class RegistrationToken {
     @Id
     @SequenceGenerator(
             name="token_sequence",
@@ -45,13 +42,13 @@ public class Token {
 
     private LocalDateTime verifiedAt;
 
+    @Enumerated(EnumType.STRING)
+    private RegistrationTokenType tokenType;
+
     @ManyToOne
     @JoinColumn(
             nullable = false,
             name="user_id"
     )
     private User user;
-
-    @Enumerated(EnumType.STRING)
-    private TokenType tokenType;
 }
