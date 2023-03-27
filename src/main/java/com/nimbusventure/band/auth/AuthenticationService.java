@@ -111,6 +111,34 @@ public class AuthenticationService {
                 .build();
     }
 
+    public Boolean resetPassword(ForgotPasswordRequest request) {
+        if (request.getCurrentPassword().equals(request.getNewPassword()))
+            throw new IllegalStateException("new password is same as current password");
+
+        var user = userRepository.findUserByEmail(request.getEmail());
+
+        if (user.isEmpty()) throw new IllegalStateException("User not found!");
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.get().getPassword()))
+            throw new IllegalStateException("Current password is wrong!");
+
+        var jwtToken = jwtService.generateToken(user.get());
+
+        var passwordResetToken = PasswordResetToken.builder()
+                .token(jwtToken)
+                .newPassword(passwordEncoder.encode(request.getNewPassword()))
+                .createdAt(LocalDateTime.now())
+                .expiresAt(LocalDateTime.now().plusMinutes(15))
+                .user(user.get())
+                .build();
+
+        passwordResetTokenRepository.save(passwordResetToken);
+
+        String link = "http://localhost:8080/api/v1/auth/confirmResetPassword?token=" + jwtToken;
+        emailSender.send(request.getEmail(), buildPasswordResetConfirmationTemplate(link), "Reset your password");
+        return true;
+    }
+
     @Transactional
     public Boolean confirmRegistration(String token) {
         var confirmationToken = tokenRepository.findByToken(token);
@@ -165,34 +193,6 @@ public class AuthenticationService {
         var band = bandRepository.findBandByBandId(bandId);
         if(band.isPresent()) throw new IllegalStateException("Band ID is already registered to a different user.");
         else return true;
-    }
-
-    public Boolean resetPassword(ForgotPasswordRequest request) {
-        if (request.getCurrentPassword().equals(request.getNewPassword()))
-            throw new IllegalStateException("new password is same as current password");
-
-        var user = userRepository.findUserByEmail(request.getEmail());
-
-        if (user.isEmpty()) throw new IllegalStateException("User not found!");
-
-        if (!passwordEncoder.matches(request.getCurrentPassword(), user.get().getPassword()))
-            throw new IllegalStateException("Current password is wrong!");
-
-        var jwtToken = jwtService.generateToken(user.get());
-
-        var passwordResetToken = PasswordResetToken.builder()
-                .token(jwtToken)
-                .newPassword(passwordEncoder.encode(request.getNewPassword()))
-                .createdAt(LocalDateTime.now())
-                .expiresAt(LocalDateTime.now().plusMinutes(15))
-                .user(user.get())
-                        .build();
-
-        passwordResetTokenRepository.save(passwordResetToken);
-
-        String link = "http://localhost:8080/api/v1/auth/confirmResetPassword?token=" + jwtToken;
-        emailSender.send(request.getEmail(), buildPasswordResetConfirmationTemplate(link), "Reset your password");
-        return true;
     }
 
     private String buildEmailConfirmationTemplate(String firstName, String link) {
