@@ -12,6 +12,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import javax.persistence.*;
 import javax.validation.constraints.Email;
+import javax.validation.constraints.Min;
 import javax.validation.constraints.Pattern;
 import java.time.LocalDate;
 import java.util.Collection;
@@ -26,8 +27,7 @@ import static javax.persistence.GenerationType.SEQUENCE;
 @Entity
 @Table(
         uniqueConstraints = {
-                @UniqueConstraint(name = "user_email_unique", columnNames = "email"),
-                @UniqueConstraint(name="user_phone_number_unique", columnNames = "phone_number")
+                @UniqueConstraint(name = "user_email_unique", columnNames = "email")
         }
 )
 public class User implements UserDetails {
@@ -51,6 +51,7 @@ public class User implements UserDetails {
     @Email
     private String email;
 
+    @Min(8)
     private String password;
 
     @Pattern(regexp = "^\\w{2,}$")
@@ -58,9 +59,6 @@ public class User implements UserDetails {
 
     @Pattern(regexp = "^\\w{2,}$")
     private String lastName;
-
-    @Column(name="phone_number")
-    private String phoneNumber;
 
     private LocalDate dateOfBirth;
 
