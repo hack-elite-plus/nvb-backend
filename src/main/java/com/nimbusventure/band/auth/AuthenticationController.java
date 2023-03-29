@@ -16,18 +16,25 @@ public class AuthenticationController {
 
     private final AuthenticationService service;
 
-    @PostMapping("/isUserExists")
+    @GetMapping("/isUserExists")
     public ResponseEntity<Boolean> isUserExists(
             @Email @RequestParam(name="email") String email
     ) {
         return ResponseEntity.ok(service.isUserExists(email));
     }
 
-    @PostMapping("/isBandExists")
+    @GetMapping("/isBandExists")
     public ResponseEntity<Boolean> isBandExists(
             @NotBlank @RequestParam(name="bandId") String bandId
     ) {
         return ResponseEntity.ok(service.isBandExists(bandId));
+    }
+
+    @GetMapping("/validateJwt")
+    public ResponseEntity<Boolean> validateJwt(
+            @Valid @RequestParam(name="token") String token
+    ) {
+        return ResponseEntity.ok(service.validateJwt(token));
     }
 
     @PostMapping("/register")
@@ -41,15 +48,14 @@ public class AuthenticationController {
     public ResponseEntity<AuthenticationResponse> authenticate(
             @Valid @RequestBody AuthenticationRequest request
     ) {
-        System.out.println(request);
         return ResponseEntity.ok(service.authenticate(request));
     }
 
-    @GetMapping("/confirmRegistration")
-    public ResponseEntity<Boolean> confirmRegistration(
-            @RequestParam(name="token") String token
+    @PostMapping("/registerPet")
+    public ResponseEntity<Boolean> registerPet(
+            @Valid @RequestBody RegisterPetRequest request
     ) {
-        return ResponseEntity.ok(service.confirmRegistration(token));
+        return ResponseEntity.ok(service.registerPet(request));
     }
 
     @PostMapping("/resetPassword")
@@ -57,6 +63,13 @@ public class AuthenticationController {
             @Valid @RequestBody ForgotPasswordRequest request
     ) {
         return ResponseEntity.ok(service.resetPassword(request));
+    }
+
+    @GetMapping("/confirmRegistration")
+    public ResponseEntity<Boolean> confirmRegistration(
+            @Valid @RequestParam(name="token") String token
+    ) {
+        return ResponseEntity.ok(service.confirmRegistration(token));
     }
 
     @GetMapping("/confirmResetPassword")
