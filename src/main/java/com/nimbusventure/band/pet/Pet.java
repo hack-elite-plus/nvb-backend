@@ -1,5 +1,6 @@
 package com.nimbusventure.band.pet;
 
+import com.nimbusventure.band.user.User;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -36,7 +37,7 @@ public class Pet {
 
 
     @Enumerated(EnumType.STRING)
-    private PetType petType;
+    private PetType type;
 
     private LocalDate dateOfBirth;
 
@@ -44,4 +45,13 @@ public class Pet {
 
     private Gender gender;
 
+    @ManyToOne
+    @JoinColumn(
+            name="user_id",
+            nullable = false,
+            foreignKey = @ForeignKey(
+                    name = "user_id_fk"
+            )
+    )
+    private User user;
 }
