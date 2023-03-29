@@ -6,6 +6,8 @@ import com.nimbusventure.band.config.JwtService;
 import com.nimbusventure.band.passwordResetToken.PasswordResetToken;
 import com.nimbusventure.band.passwordResetToken.PasswordResetTokenRepository;
 import com.nimbusventure.band.passwordResetToken.PasswordResetTokenService;
+import com.nimbusventure.band.pet.Pet;
+import com.nimbusventure.band.pet.PetRepository;
 import com.nimbusventure.band.registrationToken.RegistrationToken;
 import com.nimbusventure.band.registrationToken.RegistrationTokenRepository;
 import com.nimbusventure.band.email.EmailSender;
@@ -17,24 +19,30 @@ import com.nimbusventure.band.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import javax.transaction.Transactional;
 import java.time.LocalDateTime;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
 public class AuthenticationService {
+    private final UserDetailsService userDetailsService;
 
-    private final RegistrationTokenService tokenService;
-    private final RegistrationTokenRepository tokenRepository;
+    private final RegistrationTokenService registrationTokenService;
+    private final RegistrationTokenRepository registrationTokenRepository;
 
     private final PasswordResetTokenService passwordResetTokenService;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
 
     private final UserRepository userRepository;
     private final BandRepository bandRepository;
+
+    private final PetRepository petRepository;
 
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
@@ -51,13 +59,12 @@ public class AuthenticationService {
             throw new IllegalStateException("Band ID is already registered to a different user.");
 
         var user = User.builder()
-                .firstName(request.getFirstName())
-                .lastName(request.getLastName())
-                .email(request.getEmail())
+                .firstName(request.getFirstName().trim().toLowerCase())
+                .lastName(request.getLastName().trim().toLowerCase())
+                .email(request.getEmail().trim().toLowerCase())
                 .dateOfBirth(request.getDateOfBirth())
                 .userType(request.getUserType())
                 .gender(request.getGender())
-                .phoneNumber(request.getPhoneNumber())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(Role.USER)
                 .build();
@@ -72,16 +79,14 @@ public class AuthenticationService {
         var token = RegistrationToken.builder()
                 .token(jwtToken)
                 .createdAt(LocalDateTime.now())
-                .expiresAt(LocalDateTime.now().plusMinutes(15))
                 .tokenType(RegistrationTokenType.EMAIL_CONFIRM)
                 .user(user)
                 .build();
 
-        tokenRepository.save(token);
+        registrationTokenRepository.save(token);
 
         String link = "http://localhost:8080/api/v1/auth/confirmRegistration?token=" + jwtToken;
         emailSender.send(request.getEmail(), buildEmailConfirmationTemplate(request.getFirstName(), link), "Confirm your email");
-
 
         return true;
     }
@@ -93,7 +98,7 @@ public class AuthenticationService {
         try {
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
-                            request.getEmail(),
+                            request.getEmail().trim().toLowerCase(),
                             request.getPassword()
                     )
             );
@@ -112,15 +117,9 @@ public class AuthenticationService {
     }
 
     public Boolean resetPassword(ForgotPasswordRequest request) {
-        if (request.getCurrentPassword().equals(request.getNewPassword()))
-            throw new IllegalStateException("new password is same as current password");
-
         var user = userRepository.findUserByEmail(request.getEmail());
 
         if (user.isEmpty()) throw new IllegalStateException("User not found!");
-
-        if (!passwordEncoder.matches(request.getCurrentPassword(), user.get().getPassword()))
-            throw new IllegalStateException("Current password is wrong!");
 
         var jwtToken = jwtService.generateToken(user.get());
 
@@ -139,20 +138,40 @@ public class AuthenticationService {
         return true;
     }
 
+    public Boolean validateJwt(String token) {
+        var username = jwtService.extractUsername(token);
+        if(username == null) throw new IllegalStateException("username not found!");
+
+        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+        return jwtService.isTokenValid(token, userDetails);
+    }
+
+    public Boolean registerPet(RegisterPetRequest request) {
+        var user = userRepository.findUserByEmail(request.getEmail());
+
+        if(user.isEmpty()) throw new IllegalStateException("user not found!");
+
+        var pet = Pet.builder()
+                .type(request.getPetType())
+                .user(user.get())
+                .gender(request.getGender())
+                .name(request.getName())
+                .build();
+
+        petRepository.save(pet);
+        return true;
+    }
+
     @Transactional
     public Boolean confirmRegistration(String token) {
-        var confirmationToken = tokenRepository.findByToken(token);
+        var confirmationToken = registrationTokenRepository.findByToken(token);
         if (confirmationToken.isEmpty() || confirmationToken.get().getTokenType() != RegistrationTokenType.EMAIL_CONFIRM)
             throw new IllegalStateException("invalid token!");
-
-        if(confirmationToken.get().getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new IllegalStateException("token expired!");
-        }
 
         if(confirmationToken.get().getVerifiedAt() != null)
             throw new IllegalStateException("email is already confirmed!");
 
-        tokenService.setVerifiedAt(confirmationToken.get().getToken());
+        registrationTokenService.setVerifiedAt(confirmationToken.get().getToken());
 
         var userId = confirmationToken.get().getUser().getId();
         userRepository.setUserVerified(userId);
@@ -184,7 +203,7 @@ public class AuthenticationService {
 
         var user = userRepository.findUserByEmail(email);
         if (user.isPresent()) throw new IllegalStateException("Username is already exists!");
-        else return true;
+        else return false;
     }
 
     public Boolean isBandExists(String bandId) {
@@ -192,7 +211,7 @@ public class AuthenticationService {
 
         var band = bandRepository.findBandByBandId(bandId);
         if(band.isPresent()) throw new IllegalStateException("Band ID is already registered to a different user.");
-        else return true;
+        else return false;
     }
 
     private String buildEmailConfirmationTemplate(String firstName, String link) {
