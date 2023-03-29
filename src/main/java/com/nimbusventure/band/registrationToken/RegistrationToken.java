@@ -37,9 +37,6 @@ public class RegistrationToken {
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(nullable = false)
-    private LocalDateTime expiresAt;
-
     private LocalDateTime verifiedAt;
 
     @Enumerated(EnumType.STRING)
