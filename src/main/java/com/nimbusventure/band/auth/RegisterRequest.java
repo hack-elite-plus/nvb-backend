@@ -21,10 +21,8 @@ public class RegisterRequest {
     @NotBlank
     private String password;
 
-    @Pattern(regexp = "^\\w{2,}$")
     private String firstName;
 
-    @Pattern(regexp = "^\\w{2,}$")
     private String lastName;
 
     @Enumerated(EnumType.STRING)
@@ -32,9 +30,6 @@ public class RegisterRequest {
 
     @Enumerated(EnumType.STRING)
     private Gender gender;
-
-    @NotBlank
-    private String phoneNumber;
 
     @Past
     private LocalDate dateOfBirth;
